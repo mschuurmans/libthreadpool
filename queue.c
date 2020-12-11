@@ -1,4 +1,5 @@
 #include "queue.h"
+#include "log.h"
 #include <talloc.h>
 #include <stdbool.h>
 

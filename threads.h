@@ -15,8 +15,18 @@
 
 #define NUM_FIFOS		5
 
+#define CAS_INCR(_x) do { uint32_t num; \
+			  num = load(_x); \
+			  if (cas_incr(_x, num)) break; \
+                     } while (true)
+
+#define CAS_DECR(_x) do { uint32_t num; \
+			  num = load(_x); \
+			  if (cas_decr(_x, num)) break; \
+                     } while (true)
 struct REQUEST {
 	int id;
+	int priority;
 };
 
 struct THREAD_HANDLE {
@@ -64,7 +74,9 @@ struct THREAD_POOL {
 	struct atomic_queue_t *queue[NUM_FIFOS];
 };
 
-int thread_pool_init(bool *spawn_flag);
-void thread_pool_stop(void);
+int		thread_pool_init(bool *spawn_flag);
+void		thread_pool_stop(void);
 
+int		request_enqueue(struct REQUEST *request);
+static int	request_dequeue(struct REQUEST **prerequest);
 #endif

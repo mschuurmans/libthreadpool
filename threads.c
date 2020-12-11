@@ -8,12 +8,48 @@
 static struct THREAD_POOL thread_pool;
 static bool pool_initialized = false;
 
+int request_enqueue(struct REQUEST *request)
+{
+	if (!atomic_queue_push(thread_pool.queue[request->priority], request)) {
+		log_error("Failed inserting request into the queue");
+		return 0;
+	}
+	
+	thread_pool.request_count++;
+
+	sem_post(&thread_pool.semaphore);
+
+	return 1;
+}
+
+static int request_dequeue(struct REQUEST **prerequest)
+{
+	int i;
+	struct REQUEST *request = NULL;
+
+	for (i = 0; i < NUM_FIFOS; i++) {
+		if (!atomic_queue_pop(thread_pool.queue[i], (void **) &request))
+			continue;
+		else
+			break;
+	}
+
+	if (!request)
+		return 0;
+
+	*prerequest = request;
+
+	CAS_INCR(thread_pool.active_threads);
+
+	return 1;
+}
+
 void* thread_worker(void *arg)
 {
 	struct THREAD_HANDLE *handle = (struct THREAD_HANDLE*)arg;
 
 	do {
-		log_debug("Thread %d waiting to be assigned a request", handle->thread_num);
+		log_trace("Thread %d waiting to be assigned a request", handle->thread_num);
 
 	re_wait:
 		if (sem_wait(&thread_pool.semaphore) != 0) {
@@ -26,13 +62,25 @@ void* thread_worker(void *arg)
 			break;
 		}
 
-		log_debug("Thread %d got semaphore", handle->thread_num);
+		log_trace("Thread %d got semaphore", handle->thread_num);
 
 		/*
 		 * The server is exiting.
 		 */
 		if (thread_pool.stop_flag)
 			break;
+
+		if (!request_dequeue(&handle->request)) 
+			continue;
+
+		handle->request_count++;
+
+		log_debug("thread %d Handling request", handle->thread_num);
+
+		/* does this work?? */
+		free(handle->request);
+
+		handle->request = NULL;
 	} while(handle->status != THREAD_CANCELLED);
 
 	log_debug("Thread %d exiting...", handle->thread_num);
@@ -138,7 +186,7 @@ int thread_pool_init(bool *spawn_flag)
 	thread_pool.cleanup_delay = 5;
 	thread_pool.stop_flag = false;
 	thread_pool.spawn_flag = *spawn_flag;
-	thread_pool.max_queue_size = 100;
+	thread_pool.max_queue_size = 10;
 
 	thread_pool.start_threads = 3;
 	thread_pool.max_threads = 5;
@@ -202,5 +250,9 @@ void thread_pool_stop(void)
 		next = handle->next;
 		pthread_join(handle->pthread_id, NULL);
 		thread_delete(handle);
+	}
+
+	for (i = 0; i < NUM_FIFOS; i++) {
+		talloc_free(thread_pool.queue[i]);
 	}
 }
