@@ -13,6 +13,8 @@
 #define THREAD_CANCELLED	(2)
 #define THREAD_EXITED		(3)
 
+#define NUM_FIFOS		5
+
 struct REQUEST {
 	int id;
 };
@@ -45,6 +47,7 @@ struct THREAD_POOL {
 	uint32_t		cleanup_delay;
 	bool			stop_flag;
 	bool			spawn_flag;
+	uint32_t		max_queue_size;
 
 	pthread_mutex_t		wait_mutex;
 	/*
@@ -57,9 +60,8 @@ struct THREAD_POOL {
 	uint32_t		active_threads; /* Protected by queue_mutex */
 	uint32_t		exited_threads;
 	uint32_t		num_queued;
-	/*
-	 * TODO Add a queue
-	 */
+
+	struct atomic_queue_t *queue[NUM_FIFOS];
 };
 
 int thread_pool_init(bool *spawn_flag);

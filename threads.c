@@ -3,6 +3,7 @@
 #include <semaphore.h>
 #include <stdlib.h>
 #include <errno.h>
+#include "queue.h"
 
 static struct THREAD_POOL thread_pool;
 static bool pool_initialized = false;
@@ -137,6 +138,7 @@ int thread_pool_init(bool *spawn_flag)
 	thread_pool.cleanup_delay = 5;
 	thread_pool.stop_flag = false;
 	thread_pool.spawn_flag = *spawn_flag;
+	thread_pool.max_queue_size = 100;
 
 	thread_pool.start_threads = 3;
 	thread_pool.max_threads = 5;
@@ -157,10 +159,13 @@ int thread_pool_init(bool *spawn_flag)
 		return -1;
 	}
 
-	/*
-	 * TODO init request queue?
-	 */
-
+	for (i = 0; i < NUM_FIFOS; i++) {
+		thread_pool.queue[i] = atomic_queue_create(NULL, thread_pool.max_queue_size);
+		if (!thread_pool.queue[i]) {
+			log_error("FATAL: Failed to set up request fifo");
+			return -1;
+		}
+	}
 
 	for (i = 0; i < thread_pool.start_threads; i++) {
 		if (thread_spawn(now) == NULL) {
