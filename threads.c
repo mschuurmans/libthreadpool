@@ -17,12 +17,15 @@ int request_enqueue(struct REQUEST *request)
 	
 	thread_pool.request_count++;
 
+	request->state = REQUEST_QUEUED;
+	request->id = thread_pool.request_count;
+
 	sem_post(&thread_pool.semaphore);
 
 	return 1;
 }
 
-static int request_dequeue(struct REQUEST **prerequest)
+int request_dequeue(struct REQUEST **prerequest)
 {
 	int i;
 	struct REQUEST *request = NULL;
@@ -75,7 +78,10 @@ void* thread_worker(void *arg)
 
 		handle->request_count++;
 
-		log_debug("thread %d Handling request", handle->thread_num);
+		log_debug("(%d) thread %d Handling request", handle->request->id, handle->thread_num);
+
+		if (handle->request->process(handle->request))
+			log_error("request finished with errors!");
 
 		/* does this work?? */
 		free(handle->request);
@@ -186,10 +192,9 @@ int thread_pool_init(bool *spawn_flag)
 	thread_pool.cleanup_delay = 5;
 	thread_pool.stop_flag = false;
 	thread_pool.spawn_flag = *spawn_flag;
-	thread_pool.max_queue_size = 10;
-
-	thread_pool.start_threads = 3;
-	thread_pool.max_threads = 5;
+	thread_pool.max_queue_size = 165000;
+	thread_pool.start_threads = 10;
+	thread_pool.max_threads = 50;
 
 	if (!*spawn_flag)
 		return 0;

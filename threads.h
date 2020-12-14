@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include <semaphore.h>
 
+#include "request.h"
+
 #define SEMAPHORE_LOCKED	(0)
 
 #define THREAD_RUNNING		(1)
@@ -24,10 +26,6 @@
 			  num = load(_x); \
 			  if (cas_decr(_x, num)) break; \
                      } while (true)
-struct REQUEST {
-	int id;
-	int priority;
-};
 
 struct THREAD_HANDLE {
 	struct THREAD_HANDLE	*prev;
@@ -57,7 +55,7 @@ struct THREAD_POOL {
 	uint32_t		cleanup_delay;
 	bool			stop_flag;
 	bool			spawn_flag;
-	uint32_t		max_queue_size;
+	int			max_queue_size;
 
 	pthread_mutex_t		wait_mutex;
 	/*
@@ -74,9 +72,9 @@ struct THREAD_POOL {
 	struct atomic_queue_t *queue[NUM_FIFOS];
 };
 
-int		thread_pool_init(bool *spawn_flag);
-void		thread_pool_stop(void);
+int	thread_pool_init(bool *spawn_flag);
+void	thread_pool_stop(void);
 
-int		request_enqueue(struct REQUEST *request);
-static int	request_dequeue(struct REQUEST **prerequest);
+int	request_enqueue(struct REQUEST *request);
+int	request_dequeue(struct REQUEST **prerequest);
 #endif
